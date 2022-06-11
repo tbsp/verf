@@ -1,0 +1,845 @@
+( verf.tal )
+
+|00 @System     [ &vector $2 &pad $6 &r $2 &g $2 &b $2 &debug $1 &state $1 ]
+|20 @Screen     [ &vector $2 &width $2 &height $2 &auto $1 &pad $1 &x $2 &y $2 &addr $2 &pixel $1 &sprite $1 ]
+|80 @Controller [ &vector $2 &button  $1 &key $1 ]
+|90 @Mouse      [ &vector $2 &x $2 &y $2 &state $1 &pad $3 &scrollx $2 &scrolly $2 ]
+|a0 @File0      [ &vector $2 &success $2 &stat $2 &delete $1 &append $1 &name $2 &length $2 &read $2 &write $2 ]
+|b0 @File1      [ &vector $2 &success $2 &stat $2 &delete $1 &append $1 &name $2 &length $2 &read $2 &write $2 ]
+
+( zero page )
+|0000
+    @cursor [ &x $2 &y $2 ] ( coordinates of cursor in grid space )
+	@pointer [ &x $2 &y $2 ] ( coordinates of pointer sprite on screen )
+    @gridsize [ &height $2 &width $2 &length $2 ] ( shorts to be safe, bytes only support up to 2048*2048 display )
+    @brush [ &size $1 &shape $1 &opacity $1 &hardness $1 &addr $2 &baseY $2 &baseX $2 &erase $1 ]
+    @decay [ &enabled $1 ] ( indicate if heatmap should decay )
+    @hud [ &enabled $1 ] ( indicate if HUD should be drawn )
+    @mouse-input [ &enabled $1 ] ( indicate if mouse input has been detected )
+    @invert-paint [ &enabled $1 ] ( used to invert paint when holding dpad up on DS/etc )
+
+( macros )
+%RTN { JMP2r }
+%DBG { #01 .System/debug DEO }
+
+( constants )
+%NUM_BRUSH_SHAPES { #06 }
+%MAX_BRUSH_SHAPE { #05 }
+%NUM_BRUSH_SIZES { #04 }
+%MAX_BRUSH_SIZE { #03 }
+
+( program )
+|0100
+
+	( set system colors )
+	#1e69 .System/r DEO2
+	#01c0 .System/g DEO2
+	#2ca5 .System/b DEO2
+
+	#225e .System/r DEO2
+	#25af .System/g DEO2
+	#214b .System/b DEO2
+
+    ;load-theme JSR2
+
+    ( determine grid size based on screen size )
+    .Screen/height DEI2 ( get screen height )
+    #03 SFT2 ( divide by 8 to get height in tiles )
+    DUP2 ( duplicate height in tiles for use by MUL2 )
+    .gridsize/height STZ2 ( store height )
+    .Screen/width DEI2 ( get screen width )
+    #03 SFT2 ( divide by 8 to get width in tiles )
+    DUP2 ( duplicate width in tiles for use by MUL2 )
+    .gridsize/width STZ2 ( store width )
+    MUL2 ( multiply height by width to get grid size )
+    .gridsize/length STZ2 ( store for later use )
+
+    ;fill-heatmap JSR2
+
+    #01 .decay/enabled STZ
+    #01 .hud/enabled STZ
+    #00 .mouse-input/enabled STZ ( will be enabled on any mouse activity )
+    #00 .invert-paint/enabled STZ
+
+    ( default cursor location for gamepad users )
+    .Screen/height LDZ2 #04 SFT2 .cursor/y STZ2
+    .Screen/width LDZ2 #04 SFT2 .cursor/x STZ2
+
+    ( setup brush )
+    #02 .brush/size STZ
+    #00 .brush/shape STZ
+    #02 .brush/opacity STZ
+    ;update-brush-addr JSR2
+
+	;draw-heatmap JSR2
+
+    ;on-frame .Screen/vector DEO2
+	;on-mouse .Mouse/vector DEO2
+    ;on-button .Controller/vector DEO2
+
+BRK
+
+@on-frame
+    ( These controls are handled here so they update every frame, not just on pushes/repeats )
+    .Controller/button DEI 
+
+        .mouse-input/enabled LDZ ,&mouse-enabled JCN
+            ( AND so certain button combinations will not paint )
+            DUP #07 AND [ #01 ] NEQ ,&no-a JCN #00 ;paint-brush JSR2 &no-a
+            DUP #07 AND [ #02 ] NEQ ,&no-b JCN #01 ;paint-brush JSR2 &no-b
+
+            ( dpad - AND so that only A+dpad or B+dpad can be held and still move )
+            DUP #1c AND [ #10 ] NEQ ,&no-u JCN #ffff ;inc-y JSR2 &no-u
+            DUP #2c AND [ #20 ] NEQ ,&no-d JCN #0001 ;inc-y JSR2 &no-d
+            DUP #4c AND [ #40 ] NEQ ,&no-l JCN #ffff ;inc-x JSR2 &no-l
+                #8c AND [ #80 ] NEQ ,&no-r JCN #0001 ;inc-x JSR2 &no-r
+            ,&mouse-disabled JMP
+
+        &mouse-enabled
+            ( if dpad up is held, invert paint value to erase )
+            #00 .invert-paint/enabled STZ ( reset to not inverted every frame )
+            [ #10 ] NEQ ,&no-u2 JCN #01 .invert-paint/enabled STZ &no-u2
+        &mouse-disabled
+
+    .decay/enabled LDZ #00 EQU ,&no-decay JCN 
+        ;heatmap-decay JSR2
+    &no-decay
+
+    ;draw-pointer JSR2
+	;draw-heatmap JSR2
+
+    .hud/enabled LDZ #00 EQU ,&no-hud JCN 
+        ;draw-hud JSR2
+    &no-hud
+BRK
+
+@on-mouse
+    ( enable mouse input, which affects controller button behaviour )
+    #01 .mouse-input/enabled STZ
+
+    ( update cursor position )
+	.Mouse/x DEI2 #03 SFT2 .cursor/x STZ2
+	.Mouse/y DEI2 #03 SFT2 .cursor/y STZ2
+
+    ( add sanitized low byte of scrolly to brush size )
+    ( limit to -1/0/1 to simplify bounds checks in inc functions )
+    .Mouse/scrolly DEI2 NIP #00 EQU ,&no-scroll JCN
+    .Mouse/scrolly DEI2 NIP #80 LTH #01 SWP ,&scroll-sanitized JCN ( setup +1 scroll )
+    #ff ( setup -1 scroll )
+    &scroll-sanitized
+        .Controller/button DEI #01 AND ,&ctrl JCN
+        .Controller/button DEI #04 AND ,&shift JCN
+            ;inc-size ,&scroll-tweak JMP
+        &shift
+            ;inc-shape ,&scroll-tweak JMP
+        &ctrl
+            ;inc-opacity
+        &scroll-tweak JSR2 ( jump to appropriate routine )
+    &no-scroll
+
+    ( paint if buttons are held )
+    .Mouse/state DEI 
+        [ #01 ] NEQk NIP ,&no-mouse0 JCN #00 ;paint-brush JSR2 POP BRK &no-mouse0
+        [ #04 ] NEQk NIP ,&no-mouse2 JCN #01 ;paint-brush JSR2 POP BRK &no-mouse2
+    POP
+BRK
+
+@on-button
+    ( keyboard controls )
+    .Controller/key DEI
+        [ LIT '1 ] NEQk NIP ,&no-0 JCN #00 ;set-size JSR2 &no-0
+        [ LIT '2 ] NEQk NIP ,&no-1 JCN #01 ;set-size JSR2 &no-1
+        [ LIT '3 ] NEQk NIP ,&no-2 JCN #02 ;set-size JSR2 &no-2
+        [ LIT '4 ] NEQk NIP ,&no-3 JCN #03 ;set-size JSR2 &no-3
+        [ LIT 'q ] NEQk NIP ,&shape-0 JCN #00 ;set-shape JSR2 &shape-0
+        [ LIT 'w ] NEQk NIP ,&shape-1 JCN #01 ;set-shape JSR2 &shape-1
+        [ LIT 'e ] NEQk NIP ,&shape-2 JCN #02 ;set-shape JSR2 &shape-2
+        [ LIT 'r ] NEQk NIP ,&shape-3 JCN #03 ;set-shape JSR2 &shape-3
+        [ LIT 't ] NEQk NIP ,&shape-4 JCN #04 ;set-shape JSR2 &shape-4
+        [ LIT 'y ] NEQk NIP ,&shape-5 JCN #05 ;set-shape JSR2 &shape-5
+
+        [ LIT '- ] NEQk NIP ,&opacity-0 JCN #01 ;inc-opacity JSR2 &opacity-0
+        [ LIT '= ] NEQk NIP ,&opacity-1 JCN #ff ;inc-opacity JSR2 &opacity-1
+        [ LIT 'c ] NEQk NIP ,&key-c JCN ;fill-heatmap JSR2 ;draw-heatmap JSR2 &key-c
+
+        [ LIT 'd ] NEQk NIP ,&key-d JCN ;decay-toggle JSR2 &key-d
+        [ LIT 'h ] NEQk NIP ,&key-h JCN ;hud-toggle JSR2 &key-h
+    POP
+
+    ( gamepad controls )
+	.Controller/button DEI
+        ( Select held - gets priority over other buttons )
+        [ #05 ] NEQk NIP ,&no-sa JCN ;fill-heatmap JSR2 ;draw-heatmap JSR2 POP BRK &no-sa
+        [ #06 ] NEQk NIP ,&no-sb JCN ;hud-toggle JSR2 POP BRK &no-sb
+
+        [ #14 ] NEQk NIP ,&no-su JCN ;cycle-brush-shape JSR2 POP BRK &no-su
+        [ #24 ] NEQk NIP ,&no-sd JCN ;cycle-brush-size JSR2 POP BRK &no-sd
+        [ #44 ] NEQk NIP ,&no-sl JCN #01 ;inc-opacity JSR2 POP BRK &no-sl
+        [ #84 ] NEQk NIP ,&no-sr JCN #ff ;inc-opacity JSR2 POP BRK &no-sr
+
+        [ #08 ] NEQk NIP ,&no-start JCN ;decay-toggle JSR2 POP BRK &no-start
+
+        .mouse-input/enabled LDZ #01 EOR ,&mouse-disabled JCN
+            ( B pressed by itself disables mouse input )
+            DUP #02 AND [ #02 ] NEQ ,&no-b JCN #00 .mouse-input/enabled STZ POP BRK &no-b
+
+            [ #20 ] NEQk NIP ,&no-sd2 JCN ;cycle-brush-size JSR2 POP BRK &no-sd2
+            [ #40 ] NEQk NIP ,&no-sl2 JCN #01 ;inc-opacity JSR2 POP BRK &no-sl2
+            [ #80 ] NEQk NIP ,&no-sr2 JCN #ff ;inc-opacity JSR2 POP BRK &no-sr2
+        &mouse-disabled
+    POP
+
+BRK
+
+@inc-y
+    .cursor/y LDZ2 ADD2 DUP2
+    STH2k #ffff EQU2 STH2r .gridsize/height LDZ2 EQU2 ORA
+    ,&out-of-bounds JCN
+        .cursor/y STZ2k POP
+    &out-of-bounds
+    POP2
+RTN
+
+@inc-x
+    .cursor/x LDZ2 ADD2 DUP2
+    STH2k #ffff EQU2 STH2r .gridsize/width LDZ2 EQU2 ORA
+    ,&out-of-bounds JCN
+        .cursor/x STZ2k POP
+    &out-of-bounds
+    POP2
+RTN
+
+@set-size
+    .brush/size STZ
+    ;update-brush-addr JSR2
+RTN
+
+@inc-size
+    .brush/size LDZ
+    ADD ( add passed offset )
+
+    ( constrain to reasonable values )
+    #ff NEQk NIP ,&not-min JCN POP #00 &not-min
+    NUM_BRUSH_SIZES NEQk NIP ,&not-max JCN POP MAX_BRUSH_SIZE &not-max
+
+    .brush/size STZ
+    ;update-brush-addr JSR2
+RTN
+
+@set-shape
+    .brush/shape STZ
+    ;update-brush-addr JSR2
+RTN
+
+@inc-shape
+    .brush/shape LDZ
+    ADD ( add passed offset )
+
+    ( constrain to reasonable values )
+    #ff NEQk NIP ,&not-min JCN POP #00 &not-min
+    NUM_BRUSH_SHAPES NEQk NIP ,&not-max JCN POP MAX_BRUSH_SHAPE &not-max
+
+    .brush/shape STZ
+    ;update-brush-addr JSR2
+RTN
+
+@cycle-brush-shape
+    .brush/shape LDZ INC
+    NUM_BRUSH_SHAPES NEQk NIP ,&not-max JCN POP #00 &not-max
+    .brush/shape STZ
+
+    ;update-brush-addr JSR2
+RTN
+
+@cycle-brush-size
+    .brush/size LDZ INC
+    NUM_BRUSH_SIZES NEQk NIP ,&not-max JCN POP #00 &not-max
+    .brush/size STZ
+
+    ;update-brush-addr JSR2
+RTN
+
+@update-brush-addr
+    ( get pointer to current brush shape )
+    #00 .brush/shape LDZ #10 SFT
+    ;brushes ADD2 LDA2
+
+    ( get pointer to current brush data )
+    #00 .brush/size LDZ #10 SFT ADD2 LDA2
+    .brush/addr STZ2
+RTN
+
+@inc-opacity
+    .brush/opacity LDZ
+    ADD ( add passed offset )
+
+    ( constrain to reasonable values )
+    #ff NEQk NIP ,&not-zero JCN POP #00 &not-zero
+    #08 NEQk NIP ,&not-capped JCN POP #07 &not-capped
+
+    .brush/opacity STZ
+RTN
+
+@paint-brush
+    .invert-paint/enabled LDZ
+    EOR
+    .brush/erase STZ ( store erase argument )
+
+    .brush/addr LDZ2 DUP2
+
+    ( locate base brush coordinates )
+    LDA ( load brush height )
+    #01 SFT ( divide by two )
+    #00 SWP ( convert to short )
+    .cursor/y LDZ2
+    SWP2 ( swap brush/pointer Y for subtraction )
+    SUB2
+    .brush/baseY STZ2
+
+    INC2 ( increment brush addr to width )
+    LDA #01 SFT #00 SWP
+    .cursor/x LDZ2
+    SWP2 SUB2
+    .brush/baseX STZ2
+
+    .brush/addr LDZ2 INC2 INC2 STH2 ( point to brush data )
+
+    ( initialize loop counters )
+    .brush/addr LDZ2 LDA #00 ( load brush height )
+    &ver
+        .brush/addr LDZ2 INC2 LDA #00 ( load brush width )
+        &hor
+            ( calculate addr of brush point on heatmap )
+            #00 ( short high byte )
+            OVR2 POP ( get current brush y index from stack )
+            .brush/baseY LDZ2 ( get base brush y )
+            ADD2 ( combine to get y of brush point on heatmap )
+
+            ( check if point is in bounds )
+            DUP2k .gridsize/height LDZ2 LTH2
+            ROT ROT #ffe0 LTH2 ( check if underflowed into very large numbers )
+            AND ,&in-bounds-y JCN
+                POP2 ( clean up stack before jumping )
+                ,&out-of-range JMP
+            &in-bounds-y
+
+            .gridsize/width LDZ2 
+            MUL2
+
+            #00 OVR2 POP ( get current brush x index from stack as short )
+            .brush/baseX LDZ2 ADD2 ( add to get x of brush point on heatmap )
+
+            ( check if point is in bounds )
+            DUP2k .gridsize/width LDZ2 LTH2
+            ROT ROT #ffe0 LTH2 ( check if underflowed into very large numbers )
+            AND ,&in-bounds-x JCN
+                POP2 POP2 ( clean up stack before jumping )
+                ,&out-of-range JMP
+            &in-bounds-x
+
+            ADD2 ( add to offset )
+            ;heatmap ADD2
+
+            ( paint brush point on heatmap )
+            LDAk #00 SWP ( read current value and convert to short )
+            STH2kr ( recover brush addr from rst )
+            LDA #00 SWP ( read brush value and convert to short )
+
+            .brush/opacity LDZ ( read opacity value )
+            SFT2 ( shift by opacity value )
+
+            .brush/erase LDZ
+            ,&erase JCN
+                ADD2 ( add heatmap + brush values )
+                DUP2 POP ( get copy of high byte )
+                #00 EQU ,&no-overflow JCN ( check if we overflowed the value )
+                POP #ff ( put max value on stack )
+                ,&no-overflow JMP
+            &erase
+                SUB2 ( subtract brush from heatmap )
+                DUP2 POP ( get copy of high byte )
+                #00 EQU ,&no-overflow JCN ( check if we underflowed the value )
+                POP #00 ( put min value on stack )
+            &no-overflow
+            NIP ( remove high byte used for overflow )
+
+            ROT ROT ( swap addr/value on stack )
+            STA ( store capped value back to heatmap )
+            
+            &out-of-range
+
+            INC2r ( increment brush point addr )
+
+            INC
+            GTHk ;&hor JCN2
+        POP2
+        INC 
+        GTHk ;&ver JCN2
+    POP2
+
+    POP2r ( remove brush pointer from rst )
+
+RTN
+
+@draw-pointer
+	( send pointer position to screen )
+	.pointer/x LDZ2 .Screen/x DEO2
+	.pointer/y LDZ2 .Screen/y DEO2
+
+	( clear cursor )
+	#40 .Screen/sprite DEO
+
+    ( calculate new pointer based on cursor coordinates )
+    .cursor/x LDZ2 #30 SFT2 DUP2 .pointer/x STZ2 .Screen/x DEO2
+    .cursor/y LDZ2 #30 SFT2 DUP2 .pointer/y STZ2 .Screen/y DEO2
+
+	( send pointer position to screen )
+	.pointer/x LDZ2 .Screen/x DEO2
+	.pointer/y LDZ2 .Screen/y DEO2
+	
+	;cursor-tile .Screen/addr DEO2
+	#4c .Screen/sprite DEO
+	
+RTN
+
+@decay-toggle
+    .decay/enabled LDZ
+    #01 EOR
+    .decay/enabled STZ
+RTN
+
+@hud-toggle
+    .hud/enabled LDZ
+    #01 EOR
+    .hud/enabled STZ
+RTN
+
+@heatmap-decay
+    ( decrease every heatmap value by 1, stopping at zero )
+    ;heatmap DUP2 .gridsize/length LDZ2 ADD2 ( get addr of start/end of heatmap )
+    &loop
+        OVR2 LDAk ( load value at current addr )
+        #01 SUB ( decrease by one )
+        #ff NEQk NIP ,&not-min JCN POP #00 &not-min
+        ROT ROT STA ( store new value )
+
+        SWP2 INC2 SWP2
+        LTH2k ,&loop JCN
+    POP2 POP2
+RTN
+
+@fill-heatmap
+    .gridsize/length LDZ2 ( get grid length )
+    ;heatmap ADD2 STH2 ( add to base address and stash to rst )
+
+	#0000 ( fill value )
+	;heatmap ( starting addr )
+	&loop-clear
+		STA2k ( store short, keep value/addr )
+        INC2 INC2 ( advance heatmap addr )
+		DUP2 ( duplicate address so NEQ2 can consume it )
+		STH2kr NEQ2 ( check if we've reached the end )
+		,&loop-clear JCN
+	POP2 POP2 ( clean up wst )
+    POP2r ( clean up rst )
+RTN
+
+@draw-heatmap
+    ( draw heatmap directly to the screen, without an interstitial tilemap )
+	
+	( set starting y coordinate )
+	#0000 .Screen/y DEO2
+
+	( set auto-x increment )
+	#01 .Screen/auto DEO
+
+	( initialize heatmap pointer )
+	;heatmap
+
+	LIT2r 0000 ( push y counter onto return stack )
+    &loop-y
+    	LIT2r 0000 ( push x counter onto return stack )
+        #0000 .Screen/x DEO2 ( reset x for this row )
+        &loop-x
+
+            LDAk ( push tilemap cell value into stack, retain tilemap addr )
+
+            ( shift right to drop 0-255 value down to proper 0-15 range,
+              then shift left 3 to get 8 bytes per tile )
+            #34 SFT
+            #00 ( push high portion of tile offset short )
+            SWP ( swap high/low bytes )
+
+            ;tiles ADD2 ( Add offset to base tile addr )
+            .Screen/addr DEO2 ( set tile for tilemap cell )
+
+            ( draw background sprite )
+            #02 .Screen/sprite DEO
+
+            ( increment tilemap addr )
+            INC2
+
+            ( increment x length counter, check if at limit )
+            INC2r STH2kr .gridsize/width LDZ2 NEQ2
+            ,&loop-x JCN
+        
+        POP2r ( pop off x counter )
+
+        ( increment y coordinate )
+        .Screen/y DEI2 #0008 ADD2 .Screen/y DEO2
+
+        ( increment y length counter, check if at limit )
+        INC2r STH2kr .gridsize/height LDZ2 NEQ2
+        ,&loop-y JCN
+
+    POP2r ( pop off y counter )
+    POP2 ( pop off tilemap addr )
+RTN
+
+@draw-hud
+    ( setup )
+    #0000 .Screen/x DEO2
+    #0000 .Screen/y DEO2
+    #06 .Screen/auto DEO ( auto-y and auto-addr enabled )
+
+    ( draw size icons )
+    ;size-icons .Screen/addr DEO2
+    .brush/size LDZ STH
+    #00 #04
+    &loop-size
+        OVR STHkr EQU ( compare current index and active brush index )
+        INC ( inactive=01, active=02 )
+        .Screen/sprite DEO
+        SWP INC SWP
+        LTHk ,&loop-size JCN
+    POP2
+    POPr
+
+    ( draw empty space )
+    #00 .Screen/sprite DEO
+
+    ( draw brush shapes )
+    ;shape-icons .Screen/addr DEO2
+    .brush/shape LDZ STH
+    #00 NUM_BRUSH_SHAPES
+    &loop-shape
+        OVR STHkr EQU ( compare current index and active brush index )
+        INC ( inactive=01, active=02 )
+        .Screen/sprite DEO
+        SWP INC SWP
+        LTHk ,&loop-shape JCN
+    POP2
+    POPr
+
+    ( draw empty space )
+    #00 .Screen/sprite DEO
+
+    ( draw opacity icon )
+    #00 ( high byte )
+    .brush/opacity LDZ #30 SFT ( opacity / 8, *8 for tile offset )
+    ;opacity-icons ADD2
+    .Screen/addr DEO2
+    #02 .Screen/sprite DEO
+
+    ( reset auto )
+    #00 .Screen/auto DEO
+RTN
+
+@load-theme ( -- )
+	;theme/path .File0/name DEO2
+	#0006 .File0/length DEO2
+	;theme/data .File0/read DEO2
+	.File0/success DEI2 #0006 NEQ2 ,&failed JCN
+        ( set system colors from loaded theme )
+		;theme/r LDA2 .System/r DEO2
+		;theme/g LDA2 .System/g DEO2
+		;theme/b LDA2 .System/b DEO2
+    &failed
+    #0000 .File0/name DEO2 ( close file to allow deletion while running )
+RTN
+@theme
+	&path ".theme $1
+    &data [ &r $2 &g $2 &b $2 ]
+
+@cursor-tile [ c381 0000 0000 81c3 ]
+
+@tiles
+&square
+
+( dither.chr )
+[ 0000 0000 0000 0000 ]
+[ 0048 0000 0048 0000 ]
+[ 0088 0022 0088 0022 ]
+[ 0088 00aa 0088 00aa ]
+[ 00aa 00aa 00aa 00aa ]
+[ 44aa 00aa 44aa 00aa ]
+[ 44aa 11aa 44aa 11aa ]
+[ 44aa 55aa 44aa 55aa ]
+[ 55aa 55aa 55aa 55aa ]
+[ ddaa 55aa ddaa 55aa ]
+[ ddaa 77aa ddaa 77aa ]
+[ ddaa ffaa ddaa ffaa ]
+[ ffaa ffaa ffaa ffaa ]
+[ ffee ffaa ffee ffaa ]
+[ ffee ffbb ffee ffbb ]
+[ ffff ffff ffff ffff ]
+
+@shape-icons
+[ 0018 3c7e 7e3c 1800 ]
+[ 007e 7e7e 7e7e 7e00 ]
+[ 0018 1818 1818 1800 ]
+[ 0000 007e 7e00 0000 ]
+[ 0020 7038 1c0e 0400 ]
+[ 003c 4242 4242 3c00 ]
+
+@size-icons
+[ 0000 0010 0000 0000 ]
+[ 0000 1038 1000 0000 ]
+[ 0010 387c 3810 0000 ]
+[ 1038 7cfe 7c38 1000 ]
+
+@opacity-icons
+[ fefe fefe fefe fe00 ]
+[ fcfc fcfc fcfc fc00 ]
+[ f8f8 f8f8 f8f8 f800 ]
+[ f0f0 f0f0 f0f0 f000 ]
+[ e0e0 e0e0 e0e0 e000 ]
+[ c0c0 c0c0 c0c0 c000 ]
+[ 8080 8080 8080 8000 ]
+[ 8000 8000 8000 8000 ]
+
+( brush jump table )
+@brushes
+:circle-brushes
+:square-brushes
+:vline-brushes
+:hline-brushes
+:slash-brushes
+:symbol-brushes
+
+@circle-brushes
+:&1
+:&2
+:&3
+:&4
+&1
+[ 03 03 ]
+[ 00 40 00 ]
+[ 40 ff 40 ]
+[ 00 40 00 ]
+&2
+[ 04 04 ]
+[ 40 80 80 40 ]
+[ 80 ff ff 80 ]
+[ 80 ff ff 80 ]
+[ 40 80 80 40 ]
+&3
+[ 06 06 ]
+[ 00 40 80 80 40 00 ]
+[ 40 80 ff ff 80 40 ]
+[ 80 ff ff ff ff 80 ]
+[ 80 ff ff ff ff 80 ]
+[ 40 80 ff ff 80 40 ]
+[ 00 40 80 80 40 00 ]
+&4
+[ 0a 0a ]
+[ 00 00 00 40 40 40 40 00 00 00 ]
+[ 00 00 40 80 80 80 80 40 00 00 ]
+[ 00 40 80 ff ff ff ff 80 40 00 ]
+[ 40 80 ff ff ff ff ff ff 80 40 ]
+[ 40 80 ff ff ff ff ff ff 80 40 ]
+[ 40 80 ff ff ff ff ff ff 80 40 ]
+[ 40 80 ff ff ff ff ff ff 80 40 ]
+[ 00 40 80 ff ff ff ff 80 40 00 ]
+[ 00 00 40 80 80 80 80 40 00 00 ]
+[ 00 00 00 40 40 40 40 00 00 00 ]
+
+@square-brushes
+:&1
+:&2
+:&3
+:&4
+&1
+[ 02 02 ]
+[ ff ff ]
+[ ff ff ]
+&2
+[ 04 04 ]
+[ ff ff ff ff ]
+[ ff ff ff ff ]
+[ ff ff ff ff ]
+[ ff ff ff ff ]
+&3
+[ 06 06 ]
+[ ff ff ff ff ff ff ]
+[ ff ff ff ff ff ff ]
+[ ff ff ff ff ff ff ]
+[ ff ff ff ff ff ff ]
+[ ff ff ff ff ff ff ]
+[ ff ff ff ff ff ff ]
+&4
+[ 08 08 ]
+[ ff ff ff ff ff ff ff ff ]
+[ ff ff ff ff ff ff ff ff ]
+[ ff ff ff ff ff ff ff ff ]
+[ ff ff ff ff ff ff ff ff ]
+[ ff ff ff ff ff ff ff ff ]
+[ ff ff ff ff ff ff ff ff ]
+[ ff ff ff ff ff ff ff ff ]
+[ ff ff ff ff ff ff ff ff ]
+
+@vline-brushes
+:&1
+:&2
+:&3
+:&4
+&1
+[ 02 03 ]
+[ 40 ff 40 ]
+[ 40 ff 40 ]
+&2
+[ 04 03 ]
+[ 40 ff 40 ]
+[ 40 ff 40 ]
+[ 40 ff 40 ]
+[ 40 ff 40 ]
+&3
+[ 06 03 ]
+[ 40 ff 40 ]
+[ 40 ff 40 ]
+[ 40 ff 40 ]
+[ 40 ff 40 ]
+[ 40 ff 40 ]
+[ 40 ff 40 ]
+&4
+[ 08 03 ]
+[ 40 ff 40 ]
+[ 40 ff 40 ]
+[ 40 ff 40 ]
+[ 40 ff 40 ]
+[ 40 ff 40 ]
+[ 40 ff 40 ]
+[ 40 ff 40 ]
+[ 40 ff 40 ]
+
+
+@hline-brushes
+:&1
+:&2
+:&3
+:&4
+&1
+[ 03 02 ]
+[ 40 40 ]
+[ ff ff ]
+[ 40 40 ]
+&2
+[ 03 04 ]
+[ 40 40 40 40 ]
+[ ff ff ff ff ]
+[ 40 40 40 40 ]
+&3
+[ 03 06 ]
+[ 40 40 40 40 40 40 ]
+[ ff ff ff ff ff ff ]
+[ 40 40 40 40 40 40 ]
+&4
+[ 03 08 ]
+[ 40 40 40 40 40 40 40 40 ]
+[ ff ff ff ff ff ff ff ff ]
+[ 40 40 40 40 40 40 40 40 ]
+
+@slash-brushes
+:&1
+:&2
+:&3
+:&4
+&1
+[ 02 02 ]
+[ ff 40 ]
+[ 40 ff ]
+&2
+[ 04 04 ]
+[ ff 40 00 00 ]
+[ 40 ff 40 00 ]
+[ 00 40 ff 40 ]
+[ 00 00 40 ff ]
+&3
+[ 06 06 ]
+[ ff 40 00 00 00 00 ]
+[ 40 ff 40 00 00 00 ]
+[ 00 40 ff 40 00 00 ]
+[ 00 00 40 ff 40 00 ]
+[ 00 00 00 40 ff 40 ]
+[ 00 00 00 00 40 ff ]
+&4
+[ 08 08 ]
+[ ff 40 00 00 00 00 00 00 ]
+[ 40 ff 40 00 00 00 00 00 ]
+[ 00 40 ff 40 00 00 00 00 ]
+[ 00 00 40 ff 40 00 00 00 ]
+[ 00 00 00 40 ff 40 00 00 ]
+[ 00 00 00 00 40 ff 40 00 ]
+[ 00 00 00 00 00 40 ff 40 ]
+[ 00 00 00 00 00 00 40 ff ]
+
+@symbol-brushes
+:&1
+:&2
+:&3
+:&4
+&1
+[ 0a 0a ]
+[ 00 00 00 40 40 40 40 00 00 00 ]
+[ 00 00 40 ff ff ff ff 40 00 00 ]
+[ 00 40 ff 80 40 40 80 ff 40 00 ]
+[ 40 ff 80 40 00 00 40 80 ff 40 ]
+[ 40 ff 40 00 00 00 00 40 ff 40 ]
+[ 40 ff 40 00 00 00 00 40 ff 40 ]
+[ 40 ff 80 40 00 00 40 80 ff 40 ]
+[ 00 40 ff 80 40 40 80 ff 40 00 ]
+[ 00 00 40 ff ff ff ff 40 00 00 ]
+[ 00 00 00 40 40 40 40 00 00 00 ]
+&2
+[ 0a 0a ]
+[ 00 30 30 30 30 30 30 30 30 00 ]
+[ 30 ff ff ff ff ff ff ff ff 30 ]
+[ 30 ff 30 30 30 30 30 30 ff 30 ]
+[ 30 ff 30 00 00 00 00 30 ff 30 ]
+[ 30 ff 30 00 00 00 00 30 ff 30 ]
+[ 30 ff 30 00 00 00 00 30 ff 30 ]
+[ 30 ff 30 00 00 00 00 30 ff 30 ]
+[ 30 ff 30 30 30 30 30 30 ff 30 ]
+[ 30 ff ff ff ff ff ff ff ff 30 ]
+[ 00 30 30 30 30 30 30 30 30 00 ]
+&3
+[ 0b 09 ]
+[ 00 00 00 30 ff 30 00 00 00 ]
+[ 00 00 00 60 ff 60 00 00 00 ]
+[ 00 00 30 ff 60 ff 30 00 00 ]
+[ 00 00 60 ff 30 ff 60 00 00 ]
+[ 00 30 ff 60 00 60 ff 30 00 ]
+[ 00 60 ff 30 00 30 ff 60 00 ]
+[ 30 ff 60 00 00 00 60 ff 30 ]
+[ 60 ff 00 00 00 00 00 ff 60 ]
+[ ff 60 30 30 30 30 30 60 ff ]
+[ ff ff ff ff ff ff ff ff ff ]
+[ 30 30 30 30 30 30 30 30 30 ]
+&4
+[ 0c 0d ]
+[ 00 00 00 40 40 00 00 00 40 40 00 00 00 ]
+[ 00 00 40 ff ff 40 00 40 ff ff 40 00 00 ]
+[ 00 40 ff 40 40 ff 40 ff 40 40 ff 40 00 ]
+[ 40 ff 40 00 00 40 ff 40 00 00 40 ff 40 ]
+[ 40 ff 40 00 00 00 40 00 00 00 40 ff 40 ]
+[ 40 ff 40 00 00 00 00 00 00 00 40 ff 40 ]
+[ 00 40 ff 40 00 00 00 00 00 40 ff 40 00 ]
+[ 00 00 40 ff 40 00 00 00 40 ff 40 00 00 ]
+[ 00 00 00 40 ff 40 00 40 ff 40 00 00 00 ]
+[ 00 00 00 00 40 ff 40 ff 40 00 00 00 00 ]
+[ 00 00 00 00 00 40 ff 40 00 00 00 00 00 ]
+[ 00 00 00 00 00 00 40 00 00 00 00 00 00 ]
+
+( heatmap - values 0 to 255 )
+@heatmap
+
