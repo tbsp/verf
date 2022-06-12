@@ -10,7 +10,7 @@
 ( zero page )
 |0000
     @cursor [ &x $2 &y $2 ] ( coordinates of cursor in grid space )
-	@pointer [ &x $2 &y $2 ] ( coordinates of pointer sprite on screen )
+    @pointer [ &x $2 &y $2 ] ( coordinates of pointer sprite on screen )
     @gridsize [ &height $2 &width $2 &length $2 ] ( shorts to be safe, bytes only support up to 2048*2048 display )
     @brush [ &size $1 &shape $1 &opacity $1 &hardness $1 &addr $2 &baseY $2 &baseX $2 &erase $1 ]
     @decay [ &enabled $1 ] ( indicate if heatmap should decay )
@@ -31,14 +31,10 @@
 ( program )
 |0100
 
-	( set system colors )
-	#1e69 .System/r DEO2
-	#01c0 .System/g DEO2
-	#2ca5 .System/b DEO2
-
-	#225e .System/r DEO2
-	#25af .System/g DEO2
-	#214b .System/b DEO2
+    ( set system colors )
+    #225e .System/r DEO2
+    #25af .System/g DEO2
+    #214b .System/b DEO2
 
     ;load-theme JSR2
 
@@ -71,10 +67,10 @@
     #02 .brush/opacity STZ
     ;update-brush-addr JSR2
 
-	;draw-heatmap JSR2
+    ;draw-heatmap JSR2
 
     ;on-frame .Screen/vector DEO2
-	;on-mouse .Mouse/vector DEO2
+    ;on-mouse .Mouse/vector DEO2
     ;on-button .Controller/vector DEO2
 
 BRK
@@ -106,7 +102,7 @@ BRK
     &no-decay
 
     ;draw-pointer JSR2
-	;draw-heatmap JSR2
+    ;draw-heatmap JSR2
 
     .hud/enabled LDZ #00 EQU ,&no-hud JCN 
         ;draw-hud JSR2
@@ -118,8 +114,8 @@ BRK
     #01 .mouse-input/enabled STZ
 
     ( update cursor position )
-	.Mouse/x DEI2 #03 SFT2 .cursor/x STZ2
-	.Mouse/y DEI2 #03 SFT2 .cursor/y STZ2
+    .Mouse/x DEI2 #03 SFT2 .cursor/x STZ2
+    .Mouse/y DEI2 #03 SFT2 .cursor/y STZ2
 
     ( add sanitized low byte of scrolly to brush size )
     ( limit to -1/0/1 to simplify bounds checks in inc functions )
@@ -382,23 +378,23 @@ RTN
 RTN
 
 @draw-pointer
-	( send pointer position to screen )
-	.pointer/x LDZ2 .Screen/x DEO2
-	.pointer/y LDZ2 .Screen/y DEO2
+    ( send pointer position to screen )
+    .pointer/x LDZ2 .Screen/x DEO2
+    .pointer/y LDZ2 .Screen/y DEO2
 
-	( clear cursor )
-	#40 .Screen/sprite DEO
+    ( clear cursor )
+    #40 .Screen/sprite DEO
 
     ( calculate new pointer based on cursor coordinates )
     .cursor/x LDZ2 #30 SFT2 DUP2 .pointer/x STZ2 .Screen/x DEO2
     .cursor/y LDZ2 #30 SFT2 DUP2 .pointer/y STZ2 .Screen/y DEO2
 
-	( send pointer position to screen )
-	.pointer/x LDZ2 .Screen/x DEO2
-	.pointer/y LDZ2 .Screen/y DEO2
+    ( send pointer position to screen )
+    .pointer/x LDZ2 .Screen/x DEO2
+    .pointer/y LDZ2 .Screen/y DEO2
 	
-	;cursor-tile .Screen/addr DEO2
-	#4c .Screen/sprite DEO
+    ;cursor-tile .Screen/addr DEO2
+    #4c .Screen/sprite DEO
 	
 RTN
 
@@ -447,16 +443,16 @@ RTN
 @draw-heatmap
     ( draw heatmap directly to the screen, without an interstitial tilemap )
 	
-	( set starting y coordinate )
-	#0000 .Screen/y DEO2
+    ( set starting y coordinate )
+    #0000 .Screen/y DEO2
 
-	( set auto-x increment )
-	#01 .Screen/auto DEO
+    ( set auto-x increment )
+    #01 .Screen/auto DEO
 
-	( initialize heatmap pointer )
-	;heatmap
+    ( initialize heatmap pointer )
+    ;heatmap
 
-	LIT2r 0000 ( push y counter onto return stack )
+    LIT2r 0000 ( push y counter onto return stack )
     &loop-y
     	LIT2r 0000 ( push x counter onto return stack )
         #0000 .Screen/x DEO2 ( reset x for this row )
@@ -546,19 +542,19 @@ RTN
 RTN
 
 @load-theme ( -- )
-	;theme/path .File0/name DEO2
-	#0006 .File0/length DEO2
-	;theme/data .File0/read DEO2
-	.File0/success DEI2 #0006 NEQ2 ,&failed JCN
+    ;theme/path .File0/name DEO2
+    #0006 .File0/length DEO2
+    ;theme/data .File0/read DEO2
+    .File0/success DEI2 #0006 NEQ2 ,&failed JCN
         ( set system colors from loaded theme )
-		;theme/r LDA2 .System/r DEO2
-		;theme/g LDA2 .System/g DEO2
-		;theme/b LDA2 .System/b DEO2
+        ;theme/r LDA2 .System/r DEO2
+        ;theme/g LDA2 .System/g DEO2
+        ;theme/b LDA2 .System/b DEO2
     &failed
     #0000 .File0/name DEO2 ( close file to allow deletion while running )
 RTN
 @theme
-	&path ".theme $1
+    &path ".theme $1
     &data [ &r $2 &g $2 &b $2 ]
 
 @cursor-tile [ c381 0000 0000 81c3 ]
