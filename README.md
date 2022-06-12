@@ -20,7 +20,7 @@ verf supports a variety of controls. The gamepad+touch controls will activate on
 * `mouse2`: erase
 * `mouse wheel`: adjust brush size
 * `shift+wheel`: adjust brush shape
-* `trl+wheel`: adjust opacity
+* `ctrl+wheel`: adjust opacity
 
 ## Keyboard
 
@@ -31,16 +31,19 @@ verf supports a variety of controls. The gamepad+touch controls will activate on
 * `c`: clear canvas
 * `h`: toggle HUD
 
-## Gamepad
+## Gamepad Common Controls
 
-* `dpad`: move cursor
-* `A/ctrl`: paint
-* `B/alt`: erase
 * `Start`: Toggle decay
 * `Select+down`: cycle brush size
 * `Select+up`: cycle brush shape
 * `Select+left/right`: adjust opacity
 * `Select+A`: clear canvas
+
+## Gamepad only (GBA)
+
+* `dpad`: move cursor
+* `A/ctrl`: paint
+* `B/alt`: erase
 
 ## Gamepad with touch (DS/3DS)
 
@@ -48,3 +51,5 @@ verf supports a variety of controls. The gamepad+touch controls will activate on
 * `dpad down`: cycle brush size
 * `dpad left/right`: adjust opacity
 * `B`: switch back to pure gamepad controls
+
+
