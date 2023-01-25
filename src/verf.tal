@@ -36,7 +36,7 @@
     #25af .System/g DEO2
     #214b .System/b DEO2
 
-    ;load-theme JSR2
+    load-theme
 
     ( determine grid size based on screen size )
     .Screen/height DEI2 ( get screen height )
@@ -50,7 +50,7 @@
     MUL2 ( multiply height by width to get grid size )
     .gridsize/length STZ2 ( store for later use )
 
-    ;fill-heatmap JSR2
+    fill-heatmap
 
     #01 .decay/enabled STZ
     #01 .hud/enabled STZ
@@ -65,9 +65,9 @@
     #02 .brush/size STZ
     #00 .brush/shape STZ
     #02 .brush/opacity STZ
-    ;update-brush-addr JSR2
+    update-brush-addr
 
-    ;draw-heatmap JSR2
+    draw-heatmap
 
     ;on-frame .Screen/vector DEO2
     ;on-mouse .Mouse/vector DEO2
@@ -81,14 +81,14 @@ BRK
 
         .mouse-input/enabled LDZ ,&mouse-enabled JCN
             ( AND so certain button combinations will not paint )
-            DUP #07 AND [ #01 ] NEQ ,&no-a JCN #00 ;paint-brush JSR2 &no-a
-            DUP #07 AND [ #02 ] NEQ ,&no-b JCN #01 ;paint-brush JSR2 &no-b
+            DUP #07 AND [ #01 ] NEQ ,&no-a JCN #00 paint-brush &no-a
+            DUP #07 AND [ #02 ] NEQ ,&no-b JCN #01 paint-brush &no-b
 
             ( dpad - AND so that only A+dpad or B+dpad can be held and still move )
-            DUP #1c AND [ #10 ] NEQ ,&no-u JCN #ffff ;inc-y JSR2 &no-u
-            DUP #2c AND [ #20 ] NEQ ,&no-d JCN #0001 ;inc-y JSR2 &no-d
-            DUP #4c AND [ #40 ] NEQ ,&no-l JCN #ffff ;inc-x JSR2 &no-l
-                #8c AND [ #80 ] NEQ ,&no-r JCN #0001 ;inc-x JSR2 &no-r
+            DUP #1c AND [ #10 ] NEQ ,&no-u JCN #ffff inc-y &no-u
+            DUP #2c AND [ #20 ] NEQ ,&no-d JCN #0001 inc-y &no-d
+            DUP #4c AND [ #40 ] NEQ ,&no-l JCN #ffff inc-x &no-l
+                #8c AND [ #80 ] NEQ ,&no-r JCN #0001 inc-x &no-r
             ,&mouse-disabled JMP
 
         &mouse-enabled
@@ -98,14 +98,14 @@ BRK
         &mouse-disabled
 
     .decay/enabled LDZ #00 EQU ,&no-decay JCN 
-        ;heatmap-decay JSR2
+        heatmap-decay
     &no-decay
 
-    ;draw-pointer JSR2
-    ;draw-heatmap JSR2
+    draw-pointer
+    draw-heatmap
 
     .hud/enabled LDZ #00 EQU ,&no-hud JCN 
-        ;draw-hud JSR2
+        draw-hud
     &no-hud
 BRK
 
@@ -135,53 +135,53 @@ BRK
 
     ( paint if buttons are held )
     .Mouse/state DEI 
-        [ #01 ] NEQk NIP ,&no-mouse0 JCN #00 ;paint-brush JSR2 POP BRK &no-mouse0
-        [ #04 ] NEQk NIP ,&no-mouse2 JCN #01 ;paint-brush JSR2 POP BRK &no-mouse2
+        [ #01 ] NEQk NIP ,&no-mouse0 JCN #00 paint-brush POP BRK &no-mouse0
+        [ #04 ] NEQk NIP ,&no-mouse2 JCN #01 paint-brush POP BRK &no-mouse2
     POP
 BRK
 
 @on-button
     ( keyboard controls )
     .Controller/key DEI
-        [ LIT "1 ] NEQk NIP ,&no-0 JCN #00 ;set-size JSR2 &no-0
-        [ LIT "2 ] NEQk NIP ,&no-1 JCN #01 ;set-size JSR2 &no-1
-        [ LIT "3 ] NEQk NIP ,&no-2 JCN #02 ;set-size JSR2 &no-2
-        [ LIT "4 ] NEQk NIP ,&no-3 JCN #03 ;set-size JSR2 &no-3
-        [ LIT "q ] NEQk NIP ,&shape-0 JCN #00 ;set-shape JSR2 &shape-0
-        [ LIT "w ] NEQk NIP ,&shape-1 JCN #01 ;set-shape JSR2 &shape-1
-        [ LIT "e ] NEQk NIP ,&shape-2 JCN #02 ;set-shape JSR2 &shape-2
-        [ LIT "r ] NEQk NIP ,&shape-3 JCN #03 ;set-shape JSR2 &shape-3
-        [ LIT "t ] NEQk NIP ,&shape-4 JCN #04 ;set-shape JSR2 &shape-4
-        [ LIT "y ] NEQk NIP ,&shape-5 JCN #05 ;set-shape JSR2 &shape-5
+        [ LIT "1 ] NEQk NIP ,&no-0 JCN #00 set-size &no-0
+        [ LIT "2 ] NEQk NIP ,&no-1 JCN #01 set-size &no-1
+        [ LIT "3 ] NEQk NIP ,&no-2 JCN #02 set-size &no-2
+        [ LIT "4 ] NEQk NIP ,&no-3 JCN #03 set-size &no-3
+        [ LIT "q ] NEQk NIP ,&shape-0 JCN #00 set-shape &shape-0
+        [ LIT "w ] NEQk NIP ,&shape-1 JCN #01 set-shape &shape-1
+        [ LIT "e ] NEQk NIP ,&shape-2 JCN #02 set-shape &shape-2
+        [ LIT "r ] NEQk NIP ,&shape-3 JCN #03 set-shape &shape-3
+        [ LIT "t ] NEQk NIP ,&shape-4 JCN #04 set-shape &shape-4
+        [ LIT "y ] NEQk NIP ,&shape-5 JCN #05 set-shape &shape-5
 
-        [ LIT "- ] NEQk NIP ,&opacity-0 JCN #01 ;inc-opacity JSR2 &opacity-0
-        [ LIT "= ] NEQk NIP ,&opacity-1 JCN #ff ;inc-opacity JSR2 &opacity-1
-        [ LIT "c ] NEQk NIP ,&key-c JCN ;fill-heatmap JSR2 ;draw-heatmap JSR2 &key-c
+        [ LIT "- ] NEQk NIP ,&opacity-0 JCN #01 inc-opacity &opacity-0
+        [ LIT "= ] NEQk NIP ,&opacity-1 JCN #ff inc-opacity &opacity-1
+        [ LIT "c ] NEQk NIP ,&key-c JCN fill-heatmap draw-heatmap &key-c
 
-        [ LIT "d ] NEQk NIP ,&key-d JCN ;decay-toggle JSR2 &key-d
-        [ LIT "h ] NEQk NIP ,&key-h JCN ;hud-toggle JSR2 &key-h
+        [ LIT "d ] NEQk NIP ,&key-d JCN decay-toggle &key-d
+        [ LIT "h ] NEQk NIP ,&key-h JCN hud-toggle &key-h
     POP
 
     ( gamepad controls )
 	.Controller/button DEI
         ( Select held - gets priority over other buttons )
-        [ #05 ] NEQk NIP ,&no-sa JCN ;fill-heatmap JSR2 ;draw-heatmap JSR2 POP BRK &no-sa
-        [ #06 ] NEQk NIP ,&no-sb JCN ;hud-toggle JSR2 POP BRK &no-sb
+        [ #05 ] NEQk NIP ,&no-sa JCN fill-heatmap draw-heatmap POP BRK &no-sa
+        [ #06 ] NEQk NIP ,&no-sb JCN hud-toggle POP BRK &no-sb
 
-        [ #14 ] NEQk NIP ,&no-su JCN ;cycle-brush-shape JSR2 POP BRK &no-su
-        [ #24 ] NEQk NIP ,&no-sd JCN ;cycle-brush-size JSR2 POP BRK &no-sd
-        [ #44 ] NEQk NIP ,&no-sl JCN #01 ;inc-opacity JSR2 POP BRK &no-sl
-        [ #84 ] NEQk NIP ,&no-sr JCN #ff ;inc-opacity JSR2 POP BRK &no-sr
+        [ #14 ] NEQk NIP ,&no-su JCN cycle-brush-shape POP BRK &no-su
+        [ #24 ] NEQk NIP ,&no-sd JCN cycle-brush-size POP BRK &no-sd
+        [ #44 ] NEQk NIP ,&no-sl JCN #01 inc-opacity POP BRK &no-sl
+        [ #84 ] NEQk NIP ,&no-sr JCN #ff inc-opacity POP BRK &no-sr
 
-        [ #08 ] NEQk NIP ,&no-start JCN ;decay-toggle JSR2 POP BRK &no-start
+        [ #08 ] NEQk NIP ,&no-start JCN decay-toggle POP BRK &no-start
 
         .mouse-input/enabled LDZ #01 EOR ,&mouse-disabled JCN
             ( B pressed by itself disables mouse input )
             DUP #02 AND [ #02 ] NEQ ,&no-b JCN #00 .mouse-input/enabled STZ POP BRK &no-b
 
-            [ #20 ] NEQk NIP ,&no-sd2 JCN ;cycle-brush-size JSR2 POP BRK &no-sd2
-            [ #40 ] NEQk NIP ,&no-sl2 JCN #01 ;inc-opacity JSR2 POP BRK &no-sl2
-            [ #80 ] NEQk NIP ,&no-sr2 JCN #ff ;inc-opacity JSR2 POP BRK &no-sr2
+            [ #20 ] NEQk NIP ,&no-sd2 JCN cycle-brush-size POP BRK &no-sd2
+            [ #40 ] NEQk NIP ,&no-sl2 JCN #01 inc-opacity POP BRK &no-sl2
+            [ #80 ] NEQk NIP ,&no-sr2 JCN #ff inc-opacity POP BRK &no-sr2
         &mouse-disabled
     POP
 
@@ -207,7 +207,7 @@ RTN
 
 @set-size
     .brush/size STZ
-    ;update-brush-addr JSR2
+    update-brush-addr
 RTN
 
 @inc-size
@@ -219,12 +219,12 @@ RTN
     NUM_BRUSH_SIZES NEQk NIP ,&not-max JCN POP MAX_BRUSH_SIZE &not-max
 
     .brush/size STZ
-    ;update-brush-addr JSR2
+    update-brush-addr
 RTN
 
 @set-shape
     .brush/shape STZ
-    ;update-brush-addr JSR2
+    update-brush-addr
 RTN
 
 @inc-shape
@@ -236,7 +236,7 @@ RTN
     NUM_BRUSH_SHAPES NEQk NIP ,&not-max JCN POP MAX_BRUSH_SHAPE &not-max
 
     .brush/shape STZ
-    ;update-brush-addr JSR2
+    update-brush-addr
 RTN
 
 @cycle-brush-shape
@@ -244,7 +244,7 @@ RTN
     NUM_BRUSH_SHAPES NEQk NIP ,&not-max JCN POP #00 &not-max
     .brush/shape STZ
 
-    ;update-brush-addr JSR2
+    update-brush-addr
 RTN
 
 @cycle-brush-size
@@ -252,7 +252,7 @@ RTN
     NUM_BRUSH_SIZES NEQk NIP ,&not-max JCN POP #00 &not-max
     .brush/size STZ
 
-    ;update-brush-addr JSR2
+    update-brush-addr
 RTN
 
 @update-brush-addr
@@ -838,4 +838,5 @@ RTN
 
 ( heatmap - values 0 to 255 )
 @heatmap
+
 
