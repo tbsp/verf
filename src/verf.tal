@@ -143,23 +143,23 @@ BRK
 @on-button
     ( keyboard controls )
     .Controller/key DEI
-        [ LIT '1 ] NEQk NIP ,&no-0 JCN #00 ;set-size JSR2 &no-0
-        [ LIT '2 ] NEQk NIP ,&no-1 JCN #01 ;set-size JSR2 &no-1
-        [ LIT '3 ] NEQk NIP ,&no-2 JCN #02 ;set-size JSR2 &no-2
-        [ LIT '4 ] NEQk NIP ,&no-3 JCN #03 ;set-size JSR2 &no-3
-        [ LIT 'q ] NEQk NIP ,&shape-0 JCN #00 ;set-shape JSR2 &shape-0
-        [ LIT 'w ] NEQk NIP ,&shape-1 JCN #01 ;set-shape JSR2 &shape-1
-        [ LIT 'e ] NEQk NIP ,&shape-2 JCN #02 ;set-shape JSR2 &shape-2
-        [ LIT 'r ] NEQk NIP ,&shape-3 JCN #03 ;set-shape JSR2 &shape-3
-        [ LIT 't ] NEQk NIP ,&shape-4 JCN #04 ;set-shape JSR2 &shape-4
-        [ LIT 'y ] NEQk NIP ,&shape-5 JCN #05 ;set-shape JSR2 &shape-5
+        [ LIT "1 ] NEQk NIP ,&no-0 JCN #00 ;set-size JSR2 &no-0
+        [ LIT "2 ] NEQk NIP ,&no-1 JCN #01 ;set-size JSR2 &no-1
+        [ LIT "3 ] NEQk NIP ,&no-2 JCN #02 ;set-size JSR2 &no-2
+        [ LIT "4 ] NEQk NIP ,&no-3 JCN #03 ;set-size JSR2 &no-3
+        [ LIT "q ] NEQk NIP ,&shape-0 JCN #00 ;set-shape JSR2 &shape-0
+        [ LIT "w ] NEQk NIP ,&shape-1 JCN #01 ;set-shape JSR2 &shape-1
+        [ LIT "e ] NEQk NIP ,&shape-2 JCN #02 ;set-shape JSR2 &shape-2
+        [ LIT "r ] NEQk NIP ,&shape-3 JCN #03 ;set-shape JSR2 &shape-3
+        [ LIT "t ] NEQk NIP ,&shape-4 JCN #04 ;set-shape JSR2 &shape-4
+        [ LIT "y ] NEQk NIP ,&shape-5 JCN #05 ;set-shape JSR2 &shape-5
 
-        [ LIT '- ] NEQk NIP ,&opacity-0 JCN #01 ;inc-opacity JSR2 &opacity-0
-        [ LIT '= ] NEQk NIP ,&opacity-1 JCN #ff ;inc-opacity JSR2 &opacity-1
-        [ LIT 'c ] NEQk NIP ,&key-c JCN ;fill-heatmap JSR2 ;draw-heatmap JSR2 &key-c
+        [ LIT "- ] NEQk NIP ,&opacity-0 JCN #01 ;inc-opacity JSR2 &opacity-0
+        [ LIT "= ] NEQk NIP ,&opacity-1 JCN #ff ;inc-opacity JSR2 &opacity-1
+        [ LIT "c ] NEQk NIP ,&key-c JCN ;fill-heatmap JSR2 ;draw-heatmap JSR2 &key-c
 
-        [ LIT 'd ] NEQk NIP ,&key-d JCN ;decay-toggle JSR2 &key-d
-        [ LIT 'h ] NEQk NIP ,&key-h JCN ;hud-toggle JSR2 &key-h
+        [ LIT "d ] NEQk NIP ,&key-d JCN ;decay-toggle JSR2 &key-d
+        [ LIT "h ] NEQk NIP ,&key-h JCN ;hud-toggle JSR2 &key-h
     POP
 
     ( gamepad controls )
