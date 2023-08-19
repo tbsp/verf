@@ -383,6 +383,7 @@ RTN
     .pointer/y LDZ2 .Screen/y DEO2
 
     ( clear cursor )
+    ;cursor-tile .Screen/addr DEO2
     #40 .Screen/sprite DEO
 
     ( calculate new pointer based on cursor coordinates )
@@ -393,8 +394,7 @@ RTN
     .pointer/x LDZ2 .Screen/x DEO2
     .pointer/y LDZ2 .Screen/y DEO2
 	
-    ;cursor-tile .Screen/addr DEO2
-    #4c .Screen/sprite DEO
+    #43 .Screen/sprite DEO
 	
 RTN
 
@@ -557,7 +557,7 @@ RTN
     &path ".theme $1
     &data [ &r $2 &g $2 &b $2 ]
 
-@cursor-tile [ c381 0000 0000 81c3 ]
+@cursor-tile [ 3c7e ffff ffff 7e3c ]
 
 @tiles
 &square
