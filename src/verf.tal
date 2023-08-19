@@ -31,6 +31,7 @@
 ( program )
 |0100
 
+@on-reset ( -> )
 	( set system colors )
 	#225e .System/r DEO2
 	#25af .System/g DEO2
@@ -75,7 +76,7 @@
 
 BRK
 
-@on-frame
+@on-frame ( -> )
 	( These controls are handled here so they update every frame, not just on pushes/repeats )
 	.Controller/button DEI 
 
@@ -109,7 +110,7 @@ BRK
 	&no-hud
 BRK
 
-@on-mouse
+@on-mouse ( -> )
 	( enable mouse input, which affects controller button behaviour )
 	#01 .mouse-input/enabled STZ
 
@@ -140,7 +141,7 @@ BRK
 	POP
 BRK
 
-@on-button
+@on-button ( -> )
 	( keyboard controls )
 	.Controller/key DEI
 		[ LIT "1 ] NEQk NIP ,&no-0 JCN #00 set-size &no-0
@@ -377,7 +378,7 @@ RTN
 
 RTN
 
-@draw-pointer
+@draw-pointer ( -- )
 	( send pointer position to screen )
 	.pointer/x LDZ2 .Screen/x DEO2
 	.pointer/y LDZ2 .Screen/y DEO2
@@ -398,19 +399,19 @@ RTN
 	
 RTN
 
-@decay-toggle
+@decay-toggle ( -- )
 	.decay/enabled LDZ
 	#01 EOR
 	.decay/enabled STZ
 RTN
 
-@hud-toggle
+@hud-toggle ( -- )
 	.hud/enabled LDZ
 	#01 EOR
 	.hud/enabled STZ
 RTN
 
-@heatmap-decay
+@heatmap-decay ( -- )
 	( decrease every heatmap value by 1, stopping at zero )
 	;heatmap DUP2 .gridsize/length LDZ2 ADD2 ( get addr of start/end of heatmap )
 	&loop
@@ -424,7 +425,7 @@ RTN
 	POP2 POP2
 RTN
 
-@fill-heatmap
+@fill-heatmap ( -- )
 	.gridsize/length LDZ2 ( get grid length )
 	;heatmap ADD2 STH2 ( add to base address and stash to rst )
 
@@ -440,7 +441,7 @@ RTN
 	POP2r ( clean up rst )
 RTN
 
-@draw-heatmap
+@draw-heatmap ( -- )
 	( draw heatmap directly to the screen, without an interstitial tilemap )
 	
 	( set starting y coordinate )
@@ -492,7 +493,7 @@ RTN
 	POP2 ( pop off tilemap addr )
 RTN
 
-@draw-hud
+@draw-hud ( -- )
 	( setup )
 	#0000 .Screen/x DEO2
 	#0000 .Screen/y DEO2
